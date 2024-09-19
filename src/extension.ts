@@ -1,26 +1,63 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import ollama from 'ollama';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+  const disposable = vscode.commands.registerCommand(
+    'codevizier.vizierCreateTests',
+    async () => {
+      // Access the active text editor
+      const activeEditor = vscode.window.activeTextEditor;
+      if (!activeEditor) {
+        vscode.window.showErrorMessage('No active editor');
+        return;
+      }
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "codevizier" is now active!');
+      const document = activeEditor.document;
+      const content = document.getText();
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('codevizier.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from CodeVizier!');
-	});
+      const message = {
+        role: 'user',
+        content: `
+				  You are a seasoned developer.
+					You have expertise in JavaScript, TypeScript, React, Redux, Redux ToolKit, Redux Toolkit Query, Jest, React Testing Library.
+					Create tests for the following code snippet:
 
-	context.subscriptions.push(disposable);
+					<code>
+					  ${content}
+					</code>
+
+					Provide maximum coverage for statements, branches, and functions. Make sure to test all edge cases.
+				`,
+      };
+
+      try {
+        const response = await ollama.chat({
+          model: 'deepseek-coder:6.7b',
+          messages: [message],
+          // stream: true,
+          options: {
+            temperature: 0.1,
+          },
+        });
+
+        // for await (const part of response) {
+        //   process.stdout.write(part.message.content);
+        // }
+
+        // Insert text at the end of the active document
+        const endPosition = document.lineAt(document.lineCount - 1).range.end;
+        activeEditor.edit((editBuilder) => {
+          editBuilder.insert(endPosition, `\n${response.message.content}\n`);
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Failed to create tests';
+        vscode.window.showErrorMessage(message);
+      }
+    }
+  );
+
+  context.subscriptions.push(disposable);
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {}
